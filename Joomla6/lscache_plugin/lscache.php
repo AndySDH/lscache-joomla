@@ -1641,34 +1641,37 @@ class plgSystemLSCache extends CMSPlugin {
      * @since   0.1
      */
 	
-	private function checkVary($value = "") {
-	
-	    if ($value == "") {
-	        $value = $this->getVaryKey();
-	    }
-	
-	    $inputCookie = $this->app->input->cookie;
-	
-	    if ($value == "") {
-	        if (isset($_COOKIE[LiteSpeedCacheBase::VARY_COOKIE])) {
-	            $inputCookie->set(LiteSpeedCacheBase::VARY_COOKIE, null, ['expires' => time() - 1, 'path' => '/', 'secure' => true]);
-	            return false;
-	        }
-	        return true;
-	    }
-	
-	    if (!isset($_COOKIE[LiteSpeedCacheBase::VARY_COOKIE])) {
-	        $inputCookie->set(LiteSpeedCacheBase::VARY_COOKIE, $value, ['expires' => 0, 'path' => '/', 'secure' => true]);
-	        return false;
-	    }
-	
-	    if ($_COOKIE[LiteSpeedCacheBase::VARY_COOKIE] != $value) {
-	        $inputCookie->set(LiteSpeedCacheBase::VARY_COOKIE, $value, ['expires' => 0, 'path' => '/', 'secure' => true]);
-	        return false;
-	    }
-	
-	    return true;
-	}
+     private function checkVary($value = "") {
+
+         if ($value == "") {
+             $value = $this->getVaryKey();
+         }
+
+         $inputCookie = $this->app->input->cookie;
+
+         if ($value == "") {
+             if (isset($_COOKIE[LiteSpeedCacheBase::VARY_COOKIE])) {
+-                $inputCookie->set(LiteSpeedCacheBase::VARY_COOKIE, null, time() - 1, '/');
++                $inputCookie->set(LiteSpeedCacheBase::VARY_COOKIE, null, ['expires' => time() - 1, 'path' => '/', 'secure' => true]);
+                 return false;
+             }
+             return true;
+         }
+
+         if (!isset($_COOKIE[LiteSpeedCacheBase::VARY_COOKIE])) {
+-            $inputCookie->set(LiteSpeedCacheBase::VARY_COOKIE, $value, 0, '/');
++            $inputCookie->set(LiteSpeedCacheBase::VARY_COOKIE, $value, ['expires' => 0, 'path' => '/', 'secure' => true]);
+             return false;
+         }
+
+         if ($_COOKIE[LiteSpeedCacheBase::VARY_COOKIE] != $value) {
+-            $inputCookie->set(LiteSpeedCacheBase::VARY_COOKIE, $value, 0, '/');
++            $inputCookie->set(LiteSpeedCacheBase::VARY_COOKIE, $value, ['expires' => 0, 'path' => '/', 'secure' => true]);
+             return false;
+         }
+
+         return true;
+     }
 
     public function onAjaxLscache() {
         $progressFile = JPATH_ROOT . '/cache/lscache_rebuild_progress.json';
