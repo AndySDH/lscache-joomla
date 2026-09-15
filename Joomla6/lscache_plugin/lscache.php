@@ -1640,7 +1640,6 @@ class plgSystemLSCache extends CMSPlugin {
      *
      * @since   0.1
      */
-	
      private function checkVary($value = "") {
 
          if ($value == "") {
