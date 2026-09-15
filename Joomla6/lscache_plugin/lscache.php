@@ -1640,6 +1640,7 @@ class plgSystemLSCache extends CMSPlugin {
      *
      * @since   0.1
      */
+
 	private function checkVary($value = "") {
 	
 	    if ($value == "") {
@@ -1650,43 +1651,19 @@ class plgSystemLSCache extends CMSPlugin {
 	
 	    if ($value == "") {
 	        if (isset($_COOKIE[LiteSpeedCacheBase::VARY_COOKIE])) {
-	            $inputCookie->set(
-	                LiteSpeedCacheBase::VARY_COOKIE,
-	                null,
-	                [
-	                    'expires' => time() - 1,
-	                    'path'    => '/',
-	                    'secure'  => true,
-	                ]
-	            );
+	            $inputCookie->set(LiteSpeedCacheBase::VARY_COOKIE, null, ['expires' => time() - 1, 'path' => '/', 'secure' => true]);
 	            return false;
 	        }
 	        return true;
 	    }
 	
 	    if (!isset($_COOKIE[LiteSpeedCacheBase::VARY_COOKIE])) {
-	        $inputCookie->set(
-	            LiteSpeedCacheBase::VARY_COOKIE,
-	            $value,
-	            [
-	                'expires' => 0,
-	                'path'    => '/',
-	                'secure'  => true,
-	            ]
-	        );
+	        $inputCookie->set(LiteSpeedCacheBase::VARY_COOKIE, $value, ['expires' => 0, 'path' => '/', 'secure' => true]);
 	        return false;
 	    }
 	
 	    if ($_COOKIE[LiteSpeedCacheBase::VARY_COOKIE] != $value) {
-	        $inputCookie->set(
-	            LiteSpeedCacheBase::VARY_COOKIE,
-	            $value,
-	            [
-	                'expires' => 0,
-	                'path'    => '/',
-	                'secure'  => true,
-	            ]
-	        );
+	        $inputCookie->set(LiteSpeedCacheBase::VARY_COOKIE, $value, ['expires' => 0, 'path' => '/', 'secure' => true]);
 	        return false;
 	    }
 	
