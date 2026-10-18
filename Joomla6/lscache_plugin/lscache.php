@@ -72,11 +72,6 @@ class plgSystemLSCache extends CMSPlugin {
             $this->saveHtaccess();
         }
 
-        if(empty($this->settings->get('lscache_htaccess',''))){
-            $this->settings->set('lscache_htaccess', $this->getHtaccess());
-            $this->saveComponent();
-        }
-
         $this->cacheEnabled = $this->settings->get('cacheEnabled', 1) == 1 ? true : false;
         if (!$this->cacheEnabled) {
             return;
@@ -160,7 +155,7 @@ class plgSystemLSCache extends CMSPlugin {
                 $this->pageElements["option"] = $app->input->get('option');
 				$this->pageElements["view"] = $app->input->get('view');
 				$this->pageElements["id"] = $app->input->get('id');
-            }
+            }            
         } else {
             $link = Uri::getInstance()->getQuery();
             if (!empty($link)) {
@@ -302,27 +297,22 @@ class plgSystemLSCache extends CMSPlugin {
 
                 $language = '';
                 if ($module->vary_language) {
-                    $language = Factory::getLanguage()->getTag();
+                    $language = '&language=' . Factory::getLanguage()->getTag();
                 }
-
-                $pageUrl = !empty($module->lscache_pageurl) ? $this->getCurrentPageUrl() : '';
-                $url = $this->getESIModuleUrl($module->id, $device, $language, $attribs, $pageUrl);
                 
                 if ($module->lscache_type == 1) {
-                    $module->content = '<esi:include src="' . $url . '" cache-control="public,no-vary" cache-tag="' . $tag . '" />';
+                    $module->content = '<esi:include src="index.php?option=com_lscache&moduleid=' . $module->id . '&device=' . $device . $language . $this->getModuleAttribs($attribs) . '" cache-control="public,no-vary" cache-tag="' . $tag . '" />';
                 } else if ($module->lscache_type == -1) {
                     $tag = 'public:' . $tag . ',' . $tag;
-                    $module->content = '<esi:include src="' . $url . '" cache-control="private,no-vary" cache-tag="' . $tag . '" />';
-                } else {
-                    $module->content = '<esi:include src="' . $url . '" cache-control="no-cache"/>';
+                    $module->content = '<esi:include src="index.php?option=com_lscache&moduleid=' . $module->id . '&device=' . $device . $language  . Factory::getLanguage()->getTag() . $this->getModuleAttribs($attribs) . '" cache-control="private,no-vary" cache-tag="' . $tag . '" />';
+                } else if ($module->lscache_type == 0) {
+                    $module->content = '<esi:include src="' . 'index.php?option=com_lscache&moduleid=' . $module->id . '&device=' . $device . $language . $this->getModuleAttribs($attribs) . '" cache-control="no-cache"/>';
                 }
 
                 $this->esion = true;
                 return;
             } else if (!LITESPEED_ESI_SUPPORT) {
-                $language = $module->vary_language ? Factory::getLanguage()->getTag() : '';
-                $pageUrl = !empty($module->lscache_pageurl) ? $this->getCurrentPageUrl() : '';
-                $url = $this->getESIModuleUrl($module->id, $device, $language, $attribs, $pageUrl);
+                $url = 'index.php?option=com_lscache&moduleid=' . $module->id . '&device=' . $device . '&language=' . Factory::getLanguage()->getTag() . $this->getModuleAttribs($attribs) ;
                 $js = '$.ajax({url: "' . $url .'", success: function(result){' . PHP_EOL ;
                 $js .= '    $("#lscache_mod' . $module->id . '").replaceWith(result);' . PHP_EOL ;
                 $js .= '}});' .PHP_EOL ;
@@ -402,7 +392,6 @@ class plgSystemLSCache extends CMSPlugin {
             set_time_limit(0);
             $progressFile = JPATH_ROOT . '/cache/lscache_rebuild_progress.json';
 
-            // Collect URLs NOW while Joomla is fully initialised (getSiteMap needs the router)
             try {
                 $menus     = $this->getSiteMap();
                 $crawlList = array_map(function ($m) { return $m->path; }, $menus);
@@ -795,9 +784,6 @@ class plgSystemLSCache extends CMSPlugin {
             if($this->settings->get('mobileCacheVary') != $newSetting->mobileCacheVary){
                 $this->app->enqueueMessage(Text::_('COM_LSCACHE_PLUGIN_CHECKHTACCESS'), "warning");            
             }
-            if($this->settings->get('lscache_htaccess') != $newSetting->lscache_htaccess){
-                $this->saveHtaccess();           
-            }        
         }
 
         $this->purgeExtension($context, $row);
@@ -1499,38 +1485,24 @@ class plgSystemLSCache extends CMSPlugin {
             $attribs = $this->explode2($attrib, ';', ',');
         }
 
-        $requestedMenuid = $app->input->getInt('Itemid', 0);
         $menuid = $app->getMenu()->getDefault()->id;
-        $pageContext = array();
 
-        if ($requestedMenuid > 0) {
-            $menuid = $requestedMenuid;
-            $pageContext = $this->getMenuPageContext($menuid);
+        if (($module->pages > 0) && (isset($_SERVER['HTTP_REFERER']))) {
             $uri = Uri::getInstance();
             $uri->setPath("");
             $uri->setQuery("");
-            $uri->setFragment("");
-            $url = Route::_('index.php?Itemid=' . $menuid, false);
-            $uri->parse($url);
-        } else if (($module->pages > 0) && (isset($_SERVER['HTTP_REFERER']))) {
-            $uri = Uri::getInstance();
-            $uri->setPath("");
-            $uri->setQuery("");
-            $uri->setFragment("");
+            $uri->setFragment(""); 
             $uri->parse($_SERVER['HTTP_REFERER']);
 
-            $router = $app->getRouter();
+            $appInstance = Factory::getContainer()->get(SiteApplication::class);
+            $router = $appInstance->getRouter();
             $uri1 = clone $uri;
             $result = $router->parse($uri1);
-            if (is_array($result)) {
-                $pageContext = $result;
-            }
             if (isset($result['Itemid'])) {
                 $menuid = $result['Itemid'];
             }
         } else if (($module->pages > 0) && ($menuItems = $this->getModuleMenuItems($moduleid)) && (!in_array($menuid, $menuItems))) {
             $menuid = $menuItems[0];
-            $pageContext = $this->getMenuPageContext($menuid);
             $uri = Uri::getInstance();
             $uri->setPath("");
             $uri->setQuery("");
@@ -1538,7 +1510,6 @@ class plgSystemLSCache extends CMSPlugin {
             $url = Route::_('index.php?Itemid=' . $menuid, FALSE);
             $uri->parse($url);
         } else {
-            $pageContext = $this->getMenuPageContext($menuid);
             $root = Uri::root();
             $config = Factory::getConfig();
             $sef_rewrite = $config->get('sef_rewrite');
@@ -1553,20 +1524,13 @@ class plgSystemLSCache extends CMSPlugin {
             $uri->parse($root);
         }
 
-        $pageContext['Itemid'] = $menuid;
-        $this->applyESIPageContext($pageContext);
-        $app->input->set('Itemid', $menuid);
         $app->getMenu()->setActive($menuid);
 
         $lang = Factory::getLanguage();
         $language = $app->input->get('language');
-        if ($language && ($language != $lang->getTag())) {
-            if (method_exists($lang, 'setLanguage')) {
-                $lang->setLanguage($language);
-                $lang->load();
-            } else {
-                $lang->load('', JPATH_SITE, $language, true, false);
-            }
+        if ($language && ($language!=$lang->getTag())) {
+            $lang->setDefault( $language );
+            $lang->load();
         }
         $moduleLanguage = strtolower($module->module);
         $lang->load($moduleLanguage, JPATH_SITE);
@@ -1586,19 +1550,15 @@ class plgSystemLSCache extends CMSPlugin {
 
             $this->moduleHelper->afterESIRender($module, $content);
 
-            if ($module->lscache_type == 0) {
-                header('X-LiteSpeed-Cache-Control: no-cache');
-            } else {
-                $cacheTimeout = $module->lscache_ttl * 60;
-                $this->lscInstance->config(array("public_cache_timeout" => $cacheTimeout, "private_cache_timeout" => $cacheTimeout));
-                if ($module->lscache_type == 1) {
-                    $this->lscInstance->cachePublic($tag);
-                    $this->log();
-                } else if ($module->lscache_type == -1) {
-                    $this->lscInstance->checkPrivateCookie();
-                    $this->lscInstance->cachePrivate($tag, $tag);
-                    $this->log();
-                }
+            $cacheTimeout = $module->lscache_ttl * 60;
+            $this->lscInstance->config(array("public_cache_timeout" => $cacheTimeout, "private_cache_timeout" => $cacheTimeout));
+            if ($module->lscache_type == 1) {
+                $this->lscInstance->cachePublic($tag);
+                $this->log();
+            } else if ($module->lscache_type == -1) {
+                $this->lscInstance->checkPrivateCookie();
+                $this->lscInstance->cachePrivate($tag, $tag);
+                $this->log();
             }
             
             if ($module->module_type == 0) {                
@@ -1613,94 +1573,6 @@ class plgSystemLSCache extends CMSPlugin {
                 $this->app->setTemplate('esitemplate');
             }
         }
-    }
-
-    private function getCurrentMenuItemId() {
-        if ($this->menuItem && isset($this->menuItem->id)) {
-            return (int) $this->menuItem->id;
-        }
-
-        return (int) $this->app->input->getInt('Itemid', 0);
-    }
-
-    private function getCurrentPageUrl() {
-        $uri = Uri::getInstance();
-        $pageUrl = $uri->toString(array('path', 'query'));
-
-        if ($pageUrl === '') {
-            return '/';
-        }
-
-        return $pageUrl;
-    }
-
-    private function getMenuPageContext($menuid) {
-        $menuid = (int) $menuid;
-        if ($menuid <= 0) {
-            return array();
-        }
-
-        $menu = $this->app->getMenu()->getItem($menuid);
-        if (!$menu) {
-            return array('Itemid' => $menuid);
-        }
-
-        $context = array();
-        if (isset($menu->query) && is_array($menu->query)) {
-            $context = $menu->query;
-        } else if (isset($menu->query) && is_object($menu->query)) {
-            $context = get_object_vars($menu->query);
-        }
-
-        $context['Itemid'] = $menuid;
-        return $context;
-    }
-
-    private function applyESIPageContext(array $pageContext) {
-        $reserved = array(
-            'moduleid' => true,
-            'device' => true,
-            'attribs' => true,
-            'cleanCache' => true,
-            'recache' => true,
-        );
-
-        foreach ($pageContext as $key => $value) {
-            if ($key === '' || isset($reserved[$key])) {
-                continue;
-            }
-
-            if (is_scalar($value) || $value === null) {
-                $this->app->input->set($key, $value);
-            }
-        }
-    }
-
-    public function getESIPageUrlParam() {
-        return rawurldecode($this->app->input->get('pageurl', '', 'raw'));
-    }
-
-    private function getESIModuleUrl($moduleid, $device, $language = '', array $attribs = array(), $pageUrl = '') {
-        $params = array(
-            'option' => 'com_lscache',
-            'moduleid' => (int) $moduleid,
-            'device' => $device,
-        );
-
-        $menuid = $this->getCurrentMenuItemId();
-        if ($menuid > 0) {
-            $params['Itemid'] = $menuid;
-        }
-
-        if ($language !== '') {
-            $params['language'] = $language;
-        }
-
-        if ($pageUrl !== '') {
-            $params['pageurl'] = rawurlencode($pageUrl);
-        }
-
-        return 'index.php?' . $this->implode2($params, '&', '=') . $this->getModuleAttribs($attribs);
     }
 
     private function getModuleAttribs(array $attribs) {
@@ -1782,19 +1654,19 @@ class plgSystemLSCache extends CMSPlugin {
 
         if ($value == "") {
             if (isset($_COOKIE[LiteSpeedCacheBase::VARY_COOKIE])) {
-                $inputCookie->set(LiteSpeedCacheBase::VARY_COOKIE, null, time() - 1, '/');
+                $inputCookie->set(LiteSpeedCacheBase::VARY_COOKIE, null, ['expires' => time() - 1, 'path' => '/']);
                 return false;
             }
             return true;
         }
 
         if (!isset($_COOKIE[LiteSpeedCacheBase::VARY_COOKIE])) {
-            $inputCookie->set(LiteSpeedCacheBase::VARY_COOKIE, $value, 0, '/');
+            $inputCookie->set(LiteSpeedCacheBase::VARY_COOKIE, $value, ['expires' => 0, 'path' => '/']);
             return false;
         }
 
         if ($_COOKIE[LiteSpeedCacheBase::VARY_COOKIE] != $value) {
-            $inputCookie->set(LiteSpeedCacheBase::VARY_COOKIE, $value, 0, '/');
+            $inputCookie->set(LiteSpeedCacheBase::VARY_COOKIE, $value, ['expires' => 0, 'path' => '/']);
             return false;
         }
 
@@ -2081,7 +1953,7 @@ class plgSystemLSCache extends CMSPlugin {
                 foreach ($recacheComponents as $recacheComponent) {
                     $compUrls  = $this->componentHelper->getComMap($recacheComponent);
                     $urls = array_merge($compUrls, $urls);
-                }
+                }    
             }
         } else if ($this->purgeObject->autoRecache > 0) {
             $urls = $this->purgeObject->urls;
@@ -2131,37 +2003,21 @@ class plgSystemLSCache extends CMSPlugin {
         $table->store();
     }
 
-    private function getHtaccess() {
-        $htaccess = JPATH_ROOT . '/.htaccess';
-        if (file_exists($htaccess)) {
-            $content = file_get_contents($htaccess);
-            preg_match('@\<IfModule\ LiteSpeed\>.*?\<\/IfModule\>@s', $content, $matches);
-            return $matches[0];
-        }
-        return '';
-    }
-
-    
     private function saveHtaccess() {
         $htaccess = JPATH_ROOT . '/.htaccess';
 
         $directives = '### LITESPEED_CACHE_START - Do not remove this line' . PHP_EOL;
-        if(!empty($this->settings->get('lscache_htaccess',''))){ 
-            $directives .= $this->settings->get('lscache_htaccess','')  . PHP_EOL;
-        } else {
-            $directives .= '<IfModule LiteSpeed>' . PHP_EOL;
-            $directives .= 'CacheLookup on' . PHP_EOL;
-            $directives .= '## Uncomment the following directives if you has a separate mobile view' . PHP_EOL;
-            $directives .= '##RewriteEngine On' . PHP_EOL;
-            $directives .= '##RewriteCond %{HTTP_USER_AGENT} Mobile|Android|Silk/|Kindle|BlackBerry|Opera\ Mini|Opera\ Mobi [NC] ' . PHP_EOL;
-            $directives .= '##RewriteRule .* - [E=Cache-Control:vary=ismobile]' . PHP_EOL;
-            $directives .= '## Uncomment the following directives to enable login remember me' . PHP_EOL;
-            $directives .= '##RewriteCond %{HTTP_COOKIE} ^.*joomla_remember_me.*$' . PHP_EOL;
-            $directives .= '##RewriteCond %{HTTP_COOKIE} !^.*_lscache_vary.*$' . PHP_EOL;
-            $directives .= '##RewriteRule .* - [E=cache-control:no-cache]' . PHP_EOL;  
-            $directives .= '</IfModule>' . PHP_EOL;
-        }
-
+        $directives .= '<IfModule LiteSpeed>' . PHP_EOL;
+        $directives .= 'CacheLookup on' . PHP_EOL;
+        $directives .= '## Uncomment the following directives if you has a separate mobile view' . PHP_EOL;
+        $directives .= '##RewriteEngine On' . PHP_EOL;
+        $directives .= '##RewriteCond %{HTTP_USER_AGENT} Mobile|Android|Silk/|Kindle|BlackBerry|Opera\ Mini|Opera\ Mobi [NC] ' . PHP_EOL;
+        $directives .= '##RewriteRule .* - [E=Cache-Control:vary=ismobile]' . PHP_EOL;
+        $directives .= '## Uncomment the following directives to enable login remember me' . PHP_EOL;
+        $directives .= '##RewriteCond %{HTTP_COOKIE} ^.*joomla_remember_me.*$' . PHP_EOL;
+        $directives .= '##RewriteCond %{HTTP_COOKIE} !^.*_lscache_vary.*$' . PHP_EOL;
+        $directives .= '##RewriteRule .* - [E=cache-control:no-cache]' . PHP_EOL;        
+        $directives .= '</IfModule>' . PHP_EOL;
         $directives .= '### LITESPEED_CACHE_END';
 
         $pattern = '@### LITESPEED_CACHE_START - Do not remove this line.*?### LITESPEED_CACHE_END@s';
