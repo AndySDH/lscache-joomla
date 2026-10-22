@@ -216,7 +216,7 @@ class plgSystemLSCache extends CMSPlugin {
             $this->pageCachable = false;
             if ($this->menuItem && isset($this->menuItem->id) && ($this->settings->get('purgePostBack', 0) == 1) ) {
                 $purgeTags = "com_menus:" . $this->menuItem->id;
-                $this->lscInstance->purgePublic($purgeTags, $this->settings->get('serveStale', 1));
+                $this->lscInstance->purgePublic($purgeTags);
                 $session->set('lastPostBack', $this->menuItem->id);
                 $this->log();
             }
@@ -512,11 +512,6 @@ class plgSystemLSCache extends CMSPlugin {
             $cacheTimeout = $this->settings->get('homePageCacheTimeout', 2000) * 60;
         }
 
-        $urlCacheTimeout = $this->getUrlCacheTimeout();
-        if ($urlCacheTimeout !== null) {
-            $cacheTimeout = $urlCacheTimeout * 60;
-        }
-
         $content = $this->app->getBody();
         $token = Session::getFormToken();
         $search = '#<input.*?name="'. $token . '".*?>#';
@@ -705,8 +700,8 @@ class plgSystemLSCache extends CMSPlugin {
             $this->purgeObject->tags[] = $purgeTags;
             $this->purgeObject->option = $option;
             $this->purgeObject->idField = 'id';
-            $this->purgeObject->ids[] = $row->id;
-			$this->purgeObject->noStale = true;
+            $this->purgeObject->ids[] = $row['id'];
+            $this->purgeObject->noStale = true;
             return;
         }
         if ($this->componentHelper->supportComponent($option)) {
@@ -1430,7 +1425,8 @@ class plgSystemLSCache extends CMSPlugin {
             $tags = $app->input->get('tags');
             if (!empty($tags)) {
                 $purgeTags = base64_decode($tags);
-                $this->lscInstance->purgePublic($purgeTags, $this->settings->get('serveStale', 1));
+                $serveStale = $app->input->getInt('nostale', 0) ? 0 : $this->settings->get('serveStale', 1);
+                $this->lscInstance->purgePublic($purgeTags, $serveStale);
             } else {
                 $this->lscInstance->purgeAllPublic($this->settings->get('serveStale', 1));
                 echo "<html><body><h2>All LiteSpeed Cache Purged!</h2></body></html>";
@@ -1914,6 +1910,9 @@ class plgSystemLSCache extends CMSPlugin {
                 $purgeTags = implode(',', $this->purgeObject->tags);
                 $tags = base64_encode($purgeTags);
                 $url .= "&tags=" . $tags;
+                if (!empty($this->purgeObject->noStale)) {
+                    $url .= "&nostale=1";
+                }
             }
 
             $ch = curl_init();
@@ -2068,40 +2067,6 @@ class plgSystemLSCache extends CMSPlugin {
         return $block;
     }
     
-    /**
-     * Get the cache TTL (minutes) set for the current URL in "Override Cache TTL by URL".
-     * Patterns use the same syntax as "Exclude URLs": a substring or regular expression
-     * matched against the path and query string. Rows are checked top to bottom and the
-     * first match wins.
-     *
-     * @return  int|null  TTL in minutes of the first matching row, or null if no row matches
-     */
-    protected function getUrlCacheTimeout() {
-        $rows = $this->settings->get('urlCacheTimeouts');
-        if (empty($rows)) {
-            return null;
-        }
-
-        $path = Uri::getInstance()->toString(array('path', 'query', 'fragment'));
-        foreach ((array) $rows as $row) {
-            $row = (array) $row;
-            if (!isset($row['url']) || (trim($row['url']) === '') || !isset($row['ttl']) || !is_numeric($row['ttl'])) {
-                continue;
-            }
-
-            $pattern = trim($row['url']);
-            if ((strpos($pattern, '/') !== FALSE) && (strpos($pattern, '\\/') === FALSE)) {
-                $pattern = str_replace('/', '\\/', $pattern);
-            }
-
-            if (@preg_match('/' . $pattern . '/is', $path)) {
-                return max(0, (int) $row['ttl']);
-            }
-        }
-
-        return null;
-    }
-
     protected function isAdmin(){
         return $this->app->isClient('administrator') ;
     }
