@@ -211,7 +211,6 @@ class LSCacheControllerModules extends AdminController {
         // Serve Stale: purge the URLs by their per-page cache tag with "stale",
         // instead of deleting them with HTTP PURGE requests (which cannot serve stale).
         $serveStale = ComponentHelper::getParams('com_lscache')->get('serveStale', 1);
-        $stalePurged = false;
         if (!empty($validPaths) && $serveStale) {
             require_once JPATH_SITE . '/plugins/system/lscache/lscachebase.php';
             require_once JPATH_SITE . '/plugins/system/lscache/lscachecore.php';
@@ -228,7 +227,6 @@ class LSCacheControllerModules extends AdminController {
             $lscInstance = new LiteSpeedCacheCore();
             $lscInstance->purgePublic(implode(',', $urlTags), true);
             $validPaths = [];
-            $stalePurged = true;
         }
 
         if (!empty($validPaths)) {
@@ -274,9 +272,6 @@ class LSCacheControllerModules extends AdminController {
         }
 
         $msg[] = str_replace('%d', $success, Text::_('COM_LSCACHE_URL_PURGED'));
-        if ($stalePurged) {
-            $msg[] = Text::_('COM_LSCACHE_URL_PURGED_STALE_NOTE');
-        }
         $app = Factory::getApplication();
         $app->enqueueMessage(implode("<br>", $msg));
 
