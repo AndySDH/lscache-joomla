@@ -1354,11 +1354,7 @@ class plgSystemLSCache extends CMSPlugin {
                 continue;
             }
 
-            if ((strpos($exclusion, '/') !== FALSE) && (strpos($exclusion, '\/') === FALSE)) {
-                $exclusion = str_replace('/', '\/', $exclusion);
-            }
-
-            if (preg_match('/' . $exclusion . '/is', $path)) {
+            if ($this->matchUrlPattern($exclusion, $path)) {
                 return true;
             }
         }
@@ -1391,11 +1387,7 @@ class plgSystemLSCache extends CMSPlugin {
                 continue;
             }
 
-            if ((strpos($exclusion, '/') !== FALSE) && (strpos($exclusion, '\/') === FALSE)) {
-                $exclusion = str_replace('/', '\/', $exclusion);
-            }
-
-            if (preg_match('/' . $exclusion . '/is', $path)) {
+            if ($this->matchUrlPattern($exclusion, $path)) {
                 return true;
             }
         }
@@ -2225,17 +2217,31 @@ class plgSystemLSCache extends CMSPlugin {
                 continue;
             }
 
-            $pattern = trim($row['url']);
-            if ((strpos($pattern, '/') !== FALSE) && (strpos($pattern, '\\/') === FALSE)) {
-                $pattern = str_replace('/', '\\/', $pattern);
-            }
-
-            if (@preg_match('/' . $pattern . '/is', $path)) {
+            if ($this->matchUrlPattern(trim($row['url']), $path)) {
                 return max(0, (int) $row['ttl']);
             }
         }
 
         return null;
+    }
+
+    /**
+     * Check a URL pattern against a path (path + query string).
+     * Shared by "Exclude URLs", "Login Exclude URLs" and "Override Cache TTL by URL":
+     * the pattern is a substring or regular expression, matched case-insensitively.
+     * An invalid regular expression never matches.
+     *
+     * @param   string  $pattern  The pattern as entered in the settings
+     * @param   string  $path     The path (and query string) to check
+     *
+     * @return  boolean  True if the pattern matches
+     */
+    protected function matchUrlPattern($pattern, $path) {
+        if ((strpos($pattern, '/') !== FALSE) && (strpos($pattern, '\/') === FALSE)) {
+            $pattern = str_replace('/', '\/', $pattern);
+        }
+
+        return (bool) @preg_match('/' . $pattern . '/is', $path);
     }
 
     protected function isAdmin(){
